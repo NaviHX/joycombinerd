@@ -1,0 +1,14 @@
+[Unit]
+Description=joycombinered
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/joycombinerd
+WorkingDirectory=/root
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target

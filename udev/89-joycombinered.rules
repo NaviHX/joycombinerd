@@ -1,0 +1,8 @@
+ACTION!="add", GOTO="joycombinered_end"
+SUBSYSTEM!="input", GOTO="joycombinered_end"
+KERNEL!="event*", GOTO="joycombinered_end"
+
+ATTRS{id/vendor}=="057e", ATTRS{id/product}=="2006", ATTRS{name}!="*Combined*", ATTRS{name}!="*Virtual*", ATTRS{name}!="*IMU*", TAG+="joycombinered", MODE="0600"
+ATTRS{id/vendor}=="057e", ATTRS{id/product}=="2007", ATTRS{name}!="*Combined*", ATTRS{name}!="*Virtual*", ATTRS{name}!="*IMU*", TAG+="joycombinered", MODE="0600"
+
+LABEL="joycombinered_end"
