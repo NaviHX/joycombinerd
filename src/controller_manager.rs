@@ -2,36 +2,51 @@ use combined_controller_manager::{CombinedControllerManager, Message as Combined
 use lone_controller_manager::{LoneControllerManager, Message as LoneMessage};
 use waiting_controller_manager::{Message as WaitingMessage, WaitingControllerManager};
 
-use crate::poll_manager::PollManager;
+use crate::{
+    poll_manager::{self, PollManager},
+    udev_detector::JoyconUdevDetector,
+    UDEV_KEY,
+};
 
-use anyhow::Result as Anyhow;
+use anyhow::{Context, Result as Anyhow};
 
 mod combined_controller_manager;
+mod controller;
 mod lone_controller_manager;
 mod waiting_controller_manager;
-mod udev_detector;
 
+#[allow(unused)]
+#[derive(Debug)]
 pub enum ControllerMessage {
     Waiting(WaitingMessage),
     Lone(LoneMessage),
     Combined(CombinedMessage),
+
+    UdevEvent(udev::Event),
+    DeviceScan(udev::Device),
 }
 
 impl ControllerMessage {
-    fn process(
+    pub fn process(
         self,
-        key: usize,
-        controller_manager: &mut ControllerManager,
-        poll_manager: &mut PollManager<ControllerManager, Self>,
+        _key: usize,
+        _controller_manager: &mut ControllerManager,
+        _poll_manager: &mut PollManager<ControllerManager, Anyhow<Self>>,
     ) -> Anyhow<()> {
-        match self {
-            ControllerMessage::Waiting(_) => todo!(),
-            ControllerMessage::Lone(_) => todo!(),
-            ControllerMessage::Combined(_) => todo!(),
-        }
+        eprintln!("{self:?}");
+
+        // match self {
+        //     ControllerMessage::Waiting(_) => todo!(),
+        //     ControllerMessage::Lone(_) => todo!(),
+        //     ControllerMessage::Combined(_) => todo!(),
+        //     ControllerMessage::UdevEvent(_) => todo!(),
+        // }
+
+        Ok(())
     }
 }
 
+#[allow(unused)]
 pub struct ControllerManager {
     waiting_controller_manager: WaitingControllerManager,
     lone_controller_manager: LoneControllerManager,
@@ -39,18 +54,18 @@ pub struct ControllerManager {
 }
 
 impl ControllerManager {
-    pub fn poll(&mut self, poll_manager: &mut PollManager<Self, ControllerMessage>) -> Anyhow<()> {
+    pub fn poll(
+        &mut self,
+        poll_manager: &mut PollManager<Self, Anyhow<ControllerMessage>>,
+    ) -> Anyhow<()> {
         let messages = poll_manager.poll(self)?;
 
         for message in messages {
-            match message {
-                Ok(message) => {
-                    let (key, message) = message;
-                    if let Err(e) = message.process(key, self, poll_manager) {
-                        eprintln!("{e}");
-                    }
-                }
-                Err(e) => eprintln!("{e}"),
+            if let Err(e) = message.and_then(|msg| {
+                let (key, msg) = msg;
+                msg.and_then(|msg| msg.process(key, self, poll_manager))
+            }) {
+                eprintln!("{e}");
             }
         }
 
@@ -63,5 +78,18 @@ impl ControllerManager {
             lone_controller_manager: LoneControllerManager::new(),
             combined_controller_manager: CombinedControllerManager::new(),
         }
+    }
+
+    pub fn init(
+        &mut self,
+        poll_manager: &mut PollManager<Self, Anyhow<ControllerMessage>>,
+    ) -> Anyhow<()> {
+        let devices =
+            JoyconUdevDetector::enumerate().with_context(|| "Failed to scan the udev devices")?;
+        for msg in devices.into_iter().map(ControllerMessage::DeviceScan) {
+            msg.process(UDEV_KEY, self, poll_manager)?
+        }
+
+        Ok(())
     }
 }
