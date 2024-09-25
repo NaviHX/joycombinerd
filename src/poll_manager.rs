@@ -37,9 +37,13 @@ impl<Ctx, Message> PollManager<Ctx, Message> {
             .iter()
             .map(|event| {
                 let key = event.key;
-                // FIXME: We maybe have already remove the callback.
-                let callback = self.callback_map.get_mut(&key).unwrap();
-                Ok((key, callback.call(ctx)))
+                self.callback_map
+                    .get_mut(&key)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Failed to find the corresponding callback for key {}", key)
+                    })
+                    .map(|callback| callback.call(ctx))
+                    .map(|msg| (key, msg))
             })
             .collect())
     }
