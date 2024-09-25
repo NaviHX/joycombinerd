@@ -6,6 +6,15 @@ pub trait PollCallback<Ctx, Message> {
     fn call(&mut self, ctx: &mut Ctx) -> Message;
 }
 
+impl<Ctx, Message, F> PollCallback<Ctx, Message> for F
+where
+    F: FnMut(&mut Ctx) -> Message + 'static,
+{
+    fn call(&mut self, ctx: &mut Ctx) -> Message {
+        self(ctx)
+    }
+}
+
 pub struct PollManager<Ctx, Message> {
     poller: Poller,
     callback_map: HashMap<usize, Box<dyn PollCallback<Ctx, Message>>>,
