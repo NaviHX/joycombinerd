@@ -1,5 +1,7 @@
+#![allow(unused)]
+
 use anyhow::Result as Anyhow;
-use evdev::Device;
+use evdev::{Device, FetchEventsSynced, InputEvent};
 
 // TODO: Support motion device.
 pub struct Controller {
@@ -27,8 +29,13 @@ impl Controller {
         })
     }
 
-    fn handle_event(&mut self, ev: evdev::InputEvent) {
-        self.buttons_state.handle_event(ev, &self.model);
+    pub fn handle_pairing_events(&mut self) -> Anyhow<PairingState> {
+        let events = self.device.fetch_events()?;
+        for event in events {
+            self.buttons_state.handle_event(event, &self.model)
+        }
+
+        Ok(self.get_pairing_state())
     }
 
     fn get_pairing_state(&self) -> PairingState {
