@@ -66,6 +66,18 @@ impl Controller {
     }
 }
 
+impl AsRef<Device> for Controller {
+    fn as_ref(&self) -> &Device {
+        &self.device
+    }
+}
+
+impl AsMut<Device> for Controller {
+    fn as_mut(&mut self) -> &mut Device {
+        &mut self.device
+    }
+}
+
 /// To store the button state. This struct only stores pairing-related buttons' state.
 #[derive(Default)]
 pub struct ButtonsState {
