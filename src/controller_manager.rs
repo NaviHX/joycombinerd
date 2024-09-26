@@ -12,6 +12,7 @@ use anyhow::{Context, Result as Anyhow};
 
 mod combined_controller_manager;
 mod controller;
+mod virtual_controller;
 mod lone_controller_manager;
 mod waiting_controller_manager;
 
