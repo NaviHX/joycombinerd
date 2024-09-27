@@ -2,7 +2,9 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use anyhow::{Context, Result as Anyhow};
 use evdev::{
-    uinput::{UInputEvent, VirtualDevice}, AbsInfo, AttributeSet, EventType, FFEffectType, InputEvent, Key, UInputEventType, UinputAbsSetup
+    uinput::{FFUploadEvent, UInputEvent, VirtualDevice},
+    AbsInfo, AttributeSet, EventType, FFEffect, FFEffectData, FFEffectType, InputEvent, Key,
+    UInputEventType, UinputAbsSetup,
 };
 
 use super::controller::Controller;
@@ -20,7 +22,7 @@ pub struct VirtualController {
     virtual_device: VirtualDevice,
     physical_devices: Vec<Rc<RefCell<Controller>>>,
     key_map: KeyMap,
-    rumble_effects: HashMap<u16, ()>,
+    rumble_effects: HashMap<u16, (Option<FFEffect>, Option<FFEffect>)>,
 }
 
 impl VirtualController {
@@ -61,28 +63,95 @@ impl VirtualController {
             match event.event_type() {
                 EventType::FORCEFEEDBACK => {
                     let event = unsafe { get_input_event_from_uinput_event(event) };
-                    let (ff_l, ff_r) = (event, event);
+                    let (ff_l, ff_r) = self
+                        .rumble_effects
+                        .get(&event.code())
+                        .ok_or_else(|| anyhow::anyhow!("No corresponding effects"))?;
 
                     #[allow(clippy::get_first)]
-                    if let Some(phys_dev) = self.physical_devices.get(0) {
-                        phys_dev.borrow_mut().as_mut().send_events(&[ff_l]).with_context(|| "Failed to forward the rumble data to the left controller")?;
+                    if let Some((phys_dev, ff)) = self
+                        .physical_devices
+                        .get(0)
+                        .and_then(|dev| ff_l.as_ref().map(|ff| (dev, ff)))
+                    {
+                        let code = ff.id();
+                        let ff = InputEvent::new_now(event.event_type(), code, event.value());
+                        phys_dev
+                            .borrow_mut()
+                            .as_mut()
+                            .send_events(&[ff])
+                            .with_context(|| {
+                                "Failed to forward the rumble data to the left controller"
+                            })?;
                     }
-                    if let Some(phys_dev) = self.physical_devices.get(1) {
-                        phys_dev.borrow_mut().as_mut().send_events(&[ff_r]).with_context(|| "Failed to forward the rumble data to the right controller")?;
+                    if let Some((phys_dev, ff)) = self
+                        .physical_devices
+                        .get(1)
+                        .and_then(|dev| ff_r.as_ref().map(|ff| (dev, ff)))
+                    {
+                        let code = ff.id();
+                        let ff = InputEvent::new_now(event.event_type(), code, event.value());
+                        phys_dev
+                            .borrow_mut()
+                            .as_mut()
+                            .send_events(&[ff])
+                            .with_context(|| {
+                                "Failed to forward the rumble data to the right controller"
+                            })?;
                     }
                 }
 
                 EventType::UINPUT => {
                     match UInputEventType(event.code()) {
                         UInputEventType::UI_FF_UPLOAD => {
-                            let upload = self.virtual_device.process_ff_upload(event).with_context(|| "Failed to process the ff upload")?;
+                            let mut upload = self
+                                .virtual_device
+                                .process_ff_upload(event)
+                                .with_context(|| "Failed to process the ff upload")?;
                             let effect = upload.effect();
                             let id = upload.effect_id();
 
-                            todo!()
+                            let allocate_new_effect =
+                                id == -1 || !self.rumble_effects.contains_key(&(id as u16));
+
+                            if allocate_new_effect {
+                                let effect_l = if let Some(device) = self.physical_devices.get(0) {
+                                    Some(upload_ff_effect(
+                                        &mut (**device).borrow_mut(),
+                                        effect,
+                                        &mut upload,
+                                    )?)
+                                } else {
+                                    None
+                                };
+
+                                let effect_r = if let Some(device) = self.physical_devices.get(1) {
+                                    Some(upload_ff_effect(
+                                        &mut (**device).borrow_mut(),
+                                        effect,
+                                        &mut upload,
+                                    )?)
+                                } else {
+                                    None
+                                };
+
+                                // HACK: use the id from left controller.
+                                let id = effect_l.as_ref().ok_or_else(|| anyhow::anyhow!("Virtual Controller don't even have at least one physical device!? 🤯"))?.id();
+                                self.rumble_effects.insert(id, (effect_l, effect_r));
+                                upload.set_effect_id(id as i16);
+                            }
                         }
                         UInputEventType::UI_FF_ERASE => {
-                            todo!()
+                            let mut erase = self
+                                .virtual_device
+                                .process_ff_erase(event)
+                                .with_context(|| "Failed to process the ff erase")?;
+                            let id = erase.effect_id() as u16;
+                            if self.rumble_effects.contains_key(&id) {
+                                self.rumble_effects.remove(&id);
+                            } else {
+                                erase.set_retval(-1);
+                            }
                         }
                         _ => Err(anyhow::anyhow!("Unhandled uinput event {event:?}"))?,
                     }
@@ -194,4 +263,18 @@ impl VirtualController {
 unsafe fn get_input_event_from_uinput_event(event: UInputEvent) -> InputEvent {
     let ptr = &event as *const UInputEvent;
     unsafe { *ptr.cast::<InputEvent>() }
+}
+
+fn upload_ff_effect(
+    controller: &mut Controller,
+    effect: FFEffectData,
+    upload: &mut FFUploadEvent,
+) -> Anyhow<FFEffect> {
+    let res = controller.as_mut().upload_ff_effect(effect);
+
+    if res.is_err() {
+        upload.set_retval(res.as_ref().unwrap_err().raw_os_error().unwrap_or(-1));
+    }
+
+    res.with_context(|| "Failed to upload the ff effect")
 }
