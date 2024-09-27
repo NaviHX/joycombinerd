@@ -272,8 +272,8 @@ fn upload_ff_effect(
 ) -> Anyhow<FFEffect> {
     let res = controller.as_mut().upload_ff_effect(effect);
 
-    if res.is_err() {
-        upload.set_retval(res.as_ref().unwrap_err().raw_os_error().unwrap_or(-1));
+    if let Err(e) = &res {
+        upload.set_retval(e.raw_os_error().unwrap_or(-1));
     }
 
     res.with_context(|| "Failed to upload the ff effect")
