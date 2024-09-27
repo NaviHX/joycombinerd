@@ -64,6 +64,10 @@ impl Controller {
             }
         }
     }
+
+    pub fn get_model(&self) -> Model {
+        self.model
+    }
 }
 
 impl AsRef<Device> for Controller {
@@ -109,6 +113,7 @@ impl ButtonsState {
 const LEFT_JOYCON_PRODUCT_ID: u16 = 0x2006;
 const RIGHT_JOYCON_PRODUCT_ID: u16 = 0x2007;
 
+#[derive(Copy, Clone)]
 pub enum Model {
     LeftJoycon,
     RightJoycon,
@@ -147,6 +152,14 @@ impl Model {
                 product_id
             )),
         }
+    }
+
+    pub fn is_left(&self) -> bool {
+        matches!(self, Self::LeftJoycon)
+    }
+
+    pub fn is_right(&self) -> bool {
+        matches!(self, Self::RightJoycon)
     }
 }
 
