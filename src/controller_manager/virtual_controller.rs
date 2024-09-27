@@ -9,7 +9,15 @@ use evdev::{
 
 use super::controller::Controller;
 
-type KeyMap = HashMap<(usize, u16, u16), (EventType, u16, &'static dyn Fn(i32) -> i32)>;
+trait KeyMap {
+    fn map_key(
+        &self,
+        controller_id: usize,
+        event_type: EventType,
+        code: u16,
+        value: i32,
+    ) -> Option<(EventType, u16, i32)>;
+}
 
 const ABSINFO_VALUE: i32 = 0;
 const ABSINFO_MIN: i32 = -32767;
@@ -21,7 +29,7 @@ const ABSINFO_RESOLUTION: i32 = 0;
 pub struct VirtualController {
     virtual_device: VirtualDevice,
     physical_devices: Vec<Rc<RefCell<Controller>>>,
-    key_map: KeyMap,
+    key_map: Box<dyn KeyMap>,
     rumble_effects: HashMap<u16, (Option<FFEffect>, Option<FFEffect>)>,
 }
 
@@ -41,15 +49,17 @@ impl VirtualController {
         let relay_events: Vec<InputEvent> = events
             .flat_map(|event| {
                 let original_code = event.code();
-                let original_type = event.event_type().0;
+                let original_type = event.event_type();
                 let original_val = event.value();
 
-                self.key_map
-                    .get(&(physical_device_id, original_type, original_code))
-                    .map(|&(relay_type, relay_code, f)| {
-                        InputEvent::new(relay_type, relay_code, f(original_val))
-                    })
+                self.key_map.map_key(
+                    physical_device_id,
+                    original_type,
+                    original_code,
+                    original_val,
+                )
             })
+            .map(|(event_type, code, value)| InputEvent::new_now(event_type, code, value))
             .collect();
 
         self.virtual_device.emit(&relay_events)?;
@@ -164,7 +174,10 @@ impl VirtualController {
         Ok(())
     }
 
-    pub fn new(physical_devices: Vec<Rc<RefCell<Controller>>>, key_map: KeyMap) -> Anyhow<Self> {
+    pub fn new(
+        physical_devices: Vec<Rc<RefCell<Controller>>>,
+        key_map: Box<dyn KeyMap>,
+    ) -> Anyhow<Self> {
         // HACK: 0x2008 is an illegal product id for nintendo joycons, preventing re-registering
         // the virtual controllers.
         let input_id = evdev::InputId::new(evdev::BusType::BUS_VIRTUAL, 0x059e, 0x2008, 0x0000);
@@ -277,4 +290,31 @@ fn upload_ff_effect(
     }
 
     res.with_context(|| "Failed to upload the ff effect")
+}
+
+pub mod key_map {
+    #![allow(unused)]
+    use super::KeyMap;
+
+    pub struct Id;
+
+    impl KeyMap for Id {
+        fn map_key(
+            &self,
+            _controller_id: usize,
+            event_type: evdev::EventType,
+            code: u16,
+            value: i32,
+        ) -> Option<(evdev::EventType, u16, i32)> {
+            Some((event_type, code, value))
+        }
+    }
+
+    pub type LoneLeftConstrollerKeyMap = Id;
+    pub type LoneRightConstrollerKeyMap = Id;
+    pub type CombinedControllerKeyMap = Id;
+
+    /// FIXME: Rotate the keymap for horizontal controllers.
+    pub type HorizontalLeftControllerKeyMap = Id;
+    pub type HorizontalRightControllerKeyMap = Id;
 }
