@@ -12,8 +12,8 @@ use anyhow::{Context, Result as Anyhow};
 
 mod combined_controller_manager;
 mod controller;
-mod virtual_controller;
 mod lone_controller_manager;
+mod virtual_controller;
 mod waiting_controller_manager;
 
 #[allow(unused)]
@@ -25,26 +25,6 @@ pub enum ControllerMessage {
 
     UdevEvent(udev::Event),
     DeviceScan(udev::Device),
-}
-
-impl ControllerMessage {
-    pub fn process(
-        self,
-        _key: usize,
-        _controller_manager: &mut ControllerManager,
-        _poll_manager: &mut PollManager<ControllerManager, Anyhow<Self>>,
-    ) -> Anyhow<()> {
-        eprintln!("{self:?}");
-
-        // match self {
-        //     ControllerMessage::Waiting(_) => todo!(),
-        //     ControllerMessage::Lone(_) => todo!(),
-        //     ControllerMessage::Combined(_) => todo!(),
-        //     ControllerMessage::UdevEvent(_) => todo!(),
-        // }
-
-        Ok(())
-    }
 }
 
 #[allow(unused)]
@@ -64,7 +44,7 @@ impl ControllerManager {
         for message in messages {
             if let Err(e) = message.and_then(|msg| {
                 let (key, msg) = msg;
-                msg.and_then(|msg| msg.process(key, self, poll_manager))
+                msg.and_then(|msg| self.process(key, poll_manager, msg))
             }) {
                 eprintln!("{e}");
             }
@@ -88,8 +68,26 @@ impl ControllerManager {
         let devices =
             JoyconUdevDetector::enumerate().with_context(|| "Failed to scan the udev devices")?;
         for msg in devices.into_iter().map(ControllerMessage::DeviceScan) {
-            msg.process(UDEV_KEY, self, poll_manager)?
+            self.process(UDEV_KEY, poll_manager, msg)?
         }
+
+        Ok(())
+    }
+
+    pub fn process(
+        &mut self,
+        key: usize,
+        poll_manager: &mut PollManager<Self, Anyhow<ControllerMessage>>,
+        message: ControllerMessage,
+    ) -> Anyhow<()> {
+        eprintln!("{message:?}");
+
+        // match message {
+        //     ControllerMessage::Waiting(_) => todo!(),
+        //     ControllerMessage::Lone(_) => todo!(),
+        //     ControllerMessage::Combined(_) => todo!(),
+        //     ControllerMessage::UdevEvent(_) => todo!(),
+        // }
 
         Ok(())
     }
