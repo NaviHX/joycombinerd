@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
+
 use anyhow::Result as Anyhow;
 use evdev::{Device, FetchEventsSynced, InputEvent};
 
@@ -79,6 +81,23 @@ impl AsRef<Device> for Controller {
 impl AsMut<Device> for Controller {
     fn as_mut(&mut self) -> &mut Device {
         &mut self.device
+    }
+}
+
+impl AsRawFd for Controller {
+    fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
+        self.device.as_raw_fd()
+    }
+}
+
+impl AsFd for Controller {
+    fn as_fd(&self) -> std::os::unix::prelude::BorrowedFd<'_> {
+        let raw_fd = self.as_raw_fd();
+
+        // # Safety
+        //
+        // The fd will remain open until self drops.
+        unsafe { BorrowedFd::borrow_raw(raw_fd) }
     }
 }
 
