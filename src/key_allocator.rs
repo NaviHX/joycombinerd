@@ -23,6 +23,15 @@ impl KeyAllocator {
         Err(anyhow::anyhow!("Failed to allocate a new key"))
     }
 
+    pub fn occupy(&mut self, key: usize) -> Anyhow<()> {
+        if self.bitmap.contains(key) {
+            Err(anyhow::anyhow!("{key} is already allocated or is bigger than the capacity"))?;
+        }
+
+        self.bitmap.insert(key);
+        Ok(())
+    }
+
     pub fn release(&mut self, key: usize) {
         self.bitmap.remove(key);
     }
