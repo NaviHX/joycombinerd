@@ -9,7 +9,7 @@ use evdev::{
 
 use super::controller::Controller;
 
-trait KeyMap {
+pub trait KeyMap {
     fn map_key(
         &self,
         controller_id: usize,
@@ -310,9 +310,16 @@ pub mod key_map {
         }
     }
 
+    impl Id {
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
     pub type LoneLeftConstrollerKeyMap = Id;
     pub type LoneRightConstrollerKeyMap = Id;
-    pub type CombinedControllerKeyMap = Id;
+    pub type CombinedLeftControllerKeyMap = Id;
+    pub type CombinedRightControllerKeyMap = Id;
 
     /// FIXME: Rotate the keymap for horizontal controllers.
     pub type HorizontalLeftControllerKeyMap = Id;

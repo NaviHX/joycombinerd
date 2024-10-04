@@ -42,7 +42,7 @@ impl Controller {
         match self.model {
             Model::LeftJoycon => {
                 if self.buttons_state.l ^ self.buttons_state.zl != 0 {
-                    PairingState::Waiting
+                    PairingState::Waiting(self.get_model())
                 } else if self.buttons_state.sl != 0 && self.buttons_state.sr != 0 {
                     PairingState::Horizontal
                 } else if self.buttons_state.l != 0 && self.buttons_state.zl != 0 {
@@ -53,7 +53,7 @@ impl Controller {
             }
             Model::RightJoycon => {
                 if self.buttons_state.r ^ self.buttons_state.zr != 0 {
-                    PairingState::Waiting
+                    PairingState::Waiting(self.get_model())
                 } else if self.buttons_state.sl != 0 && self.buttons_state.sr != 0 {
                     PairingState::Horizontal
                 } else if self.buttons_state.r != 0 && self.buttons_state.zr != 0 {
@@ -113,7 +113,7 @@ impl ButtonsState {
 const LEFT_JOYCON_PRODUCT_ID: u16 = 0x2006;
 const RIGHT_JOYCON_PRODUCT_ID: u16 = 0x2007;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Model {
     LeftJoycon,
     RightJoycon,
@@ -163,9 +163,10 @@ impl Model {
     }
 }
 
+#[derive(Debug)]
 pub enum PairingState {
     Pairing,
-    Waiting,
+    Waiting(Model),
     Lone,
     Horizontal,
 }
