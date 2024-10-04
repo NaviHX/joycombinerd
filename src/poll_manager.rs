@@ -2,6 +2,10 @@ use anyhow::Result as Anyhow;
 use polling::{AsRawSource, AsSource, Events, Poller};
 use std::collections::HashMap;
 
+use crate::key_allocator::KeyAllocator;
+
+pub const KEY_CAPACITY: usize = 0x100;
+
 pub trait PollCallback<Ctx, Message> {
     fn call(&mut self, ctx: &mut Ctx) -> Message;
 }
@@ -18,6 +22,7 @@ where
 pub struct PollManager<Ctx, Message> {
     poller: Poller,
     callback_map: HashMap<usize, Box<dyn PollCallback<Ctx, Message>>>,
+    callback_key_allocator: KeyAllocator,
 }
 
 #[allow(unused)]
@@ -26,6 +31,7 @@ impl<Ctx, Message> PollManager<Ctx, Message> {
         Ok(Self {
             poller: Poller::new()?,
             callback_map: HashMap::new(),
+            callback_key_allocator: KeyAllocator::new(KEY_CAPACITY),
         })
     }
 
@@ -51,16 +57,36 @@ impl<Ctx, Message> PollManager<Ctx, Message> {
     /// Subscribe a event.
     pub fn subscribe(
         &mut self,
-        key: usize,
         source: impl AsRawSource,
-        event: polling::Event,
+        mut event: polling::Event,
         mode: polling::PollMode,
         callback: Box<dyn PollCallback<Ctx, Message>>,
-    ) -> Anyhow<()> {
+    ) -> Anyhow<usize> {
+        let key = self.callback_key_allocator.allocate()?;
+        event.key = key;
         unsafe {
             self.poller.add_with_mode(source, event, mode)?;
         }
         self.callback_map.insert(key, callback);
+
+        Ok(key)
+    }
+
+    /// Subscribe a event with given key.
+    pub fn subscribe_with_key(
+        &mut self,
+        key: usize,
+        source: impl AsRawSource,
+        mut event: polling::Event,
+        mode: polling::PollMode,
+        callback: Box<dyn PollCallback<Ctx, Message>>,
+    ) -> Anyhow<()> {
+        event.key = key;
+        unsafe {
+            self.poller.add_with_mode(source, event, mode)?;
+        }
+        self.callback_map.insert(key, callback);
+        self.callback_key_allocator.occupy(key)?;
 
         Ok(())
     }
