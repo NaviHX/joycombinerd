@@ -95,13 +95,34 @@ impl CombinedControllerManager {
         Ok(())
     }
 
-    // FIXME: If we remove a controller combined with others, we should return the other
-    // controllers.
     pub fn remove_device(
         &mut self,
-        _token: usize,
-        _poll_manager: &mut PollManager<ControllerManager, Anyhow<ControllerMessage>>,
-    ) -> Anyhow<()> {
-        todo!()
+        remove_token: usize,
+        poll_manager: &mut PollManager<ControllerManager, Anyhow<ControllerMessage>>,
+    ) -> Anyhow<Vec<(usize, Rc<RefCell<Controller>>)>> {
+        let group = self.controller_groups.get(&remove_token).ok_or_else(|| {
+            anyhow::anyhow!("Failed to find combined group for controller token {remove_token}")
+        })?;
+        let (callback_key, virtual_controller, sub_controllers) = self.groups.remove(&group).ok_or_else(|| {
+            anyhow::anyhow!("Failed to get combined group info for group {group}")
+        })?;
+        self.combined_group_token_allocator.release(*group);
+
+        // Remove virtual controller subscribtion.
+        poll_manager.remove(callback_key, &*virtual_controller.borrow())?;
+
+        // Remove each controllers subscribtion and collect controllers except the one to be
+        // removed.
+        let mut collected = vec![];
+        for (callback_key, token, controller) in sub_controllers {
+            poll_manager.remove(callback_key, &*controller.borrow())?;
+            self.controller_groups.remove(&token);
+
+            if token != remove_token {
+                collected.push((token, controller));
+            }
+        }
+
+        Ok(collected)
     }
 }
