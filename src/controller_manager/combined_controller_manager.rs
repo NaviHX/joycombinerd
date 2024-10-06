@@ -16,7 +16,14 @@ pub enum Message {}
 pub struct CombinedControllerManager {
     combined_group_token_allocator: KeyAllocator,
     controller_groups: HashMap<usize, usize>,
-    groups: HashMap<usize, (usize, Vec<(usize, Rc<RefCell<Controller>>)>)>,
+    groups: HashMap<
+        usize,
+        (
+            usize,
+            Rc<RefCell<VirtualController>>,
+            Vec<(usize, usize, Rc<RefCell<Controller>>)>,
+        ),
+    >,
 }
 
 impl CombinedControllerManager {
@@ -63,7 +70,7 @@ impl CombinedControllerManager {
         )?;
 
         let mut sub_controllers = vec![];
-        for (id, (_, controller)) in controllers.iter().enumerate() {
+        for (id, (token, controller)) in controllers.iter().enumerate() {
             let sub_controller = controller.clone();
             let virtual_controller = virtual_controller.clone();
             let callback = Box::new(move |_ctx: &mut ControllerManager| {
@@ -77,11 +84,13 @@ impl CombinedControllerManager {
                 polling::PollMode::Level,
                 callback,
             )?;
-            sub_controllers.push((callback_key, sub_controller));
+            sub_controllers.push((callback_key, *token, sub_controller));
         }
 
-        self.groups
-            .insert(new_group, (callback_key, sub_controllers));
+        self.groups.insert(
+            new_group,
+            (callback_key, virtual_controller, sub_controllers),
+        );
 
         Ok(())
     }
