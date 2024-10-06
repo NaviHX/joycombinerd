@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, os::fd::{AsFd, AsRawFd, BorrowedFd}, rc::Rc};
 
 use anyhow::{Context, Result as Anyhow};
 use evdev::{
@@ -262,6 +262,23 @@ impl VirtualController {
             key_map,
             rumble_effects: HashMap::new(),
         })
+    }
+}
+
+impl AsRawFd for VirtualController {
+    fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
+        self.virtual_device.as_raw_fd()
+    }
+}
+
+impl AsFd for VirtualController {
+    fn as_fd(&self) -> std::os::unix::prelude::BorrowedFd<'_> {
+        let raw_fd = self.as_raw_fd();
+
+        // # Safety
+        //
+        // The fd will remain open until self drops.
+        unsafe { BorrowedFd::borrow_raw(raw_fd) }
     }
 }
 
