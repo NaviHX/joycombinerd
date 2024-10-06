@@ -2,9 +2,7 @@ use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc};
 
 use combined_controller_manager::CombinedControllerManager;
 use controller::{Controller, PairingState};
-use virtual_controller::key_map::{
-    self, CombinedLeftControllerKeyMap, CombinedRightControllerKeyMap,
-};
+use virtual_controller::key_map::{self, CombinedControllerKeyMap};
 use waiting_controller_manager::WaitingControllerManager;
 
 use crate::{
