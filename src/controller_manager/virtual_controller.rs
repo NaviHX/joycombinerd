@@ -333,10 +333,8 @@ pub mod key_map {
         }
     }
 
-    pub type LoneLeftConstrollerKeyMap = Id;
-    pub type LoneRightConstrollerKeyMap = Id;
-    pub type CombinedLeftControllerKeyMap = Id;
-    pub type CombinedRightControllerKeyMap = Id;
+    pub type LoneConstrollerKeyMap = Id;
+    pub type CombinedControllerKeyMap = Id;
 
     /// FIXME: Rotate the keymap for horizontal controllers.
     pub type HorizontalLeftControllerKeyMap = Id;

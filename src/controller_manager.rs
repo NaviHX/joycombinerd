@@ -209,17 +209,10 @@ impl ControllerManager {
 
                     self.combined_controller_manager.add_new_devices(
                         vec![
-                            (
-                                left_token,
-                                left_controller,
-                                Box::new(CombinedLeftControllerKeyMap::new()),
-                            ),
-                            (
-                                right_token,
-                                right_controller,
-                                Box::new(CombinedRightControllerKeyMap::new()),
-                            ),
+                            (left_token, left_controller),
+                            (right_token, right_controller),
                         ],
+                        Box::new(CombinedControllerKeyMap::new()),
                         poll_manager,
                     )?;
                 }
@@ -234,7 +227,8 @@ impl ControllerManager {
                 self.waiting_controller_manager
                     .remove_device(controller_token, poll_manager)?;
                 self.combined_controller_manager.add_new_devices(
-                    vec![(controller_token, controller, Box::new(key_map::Id))],
+                    vec![(controller_token, controller)],
+                    Box::new(key_map::LoneConstrollerKeyMap::new()),
                     poll_manager,
                 )?;
             }
@@ -251,7 +245,8 @@ impl ControllerManager {
                     }
                 };
                 self.combined_controller_manager.add_new_devices(
-                    vec![(controller_token, controller, Box::new(key_map))],
+                    vec![(controller_token, controller)],
+                    Box::new(key_map),
                     poll_manager,
                 )?;
             }
