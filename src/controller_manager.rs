@@ -152,15 +152,20 @@ impl ControllerManager {
             .controller_token_map
             .get(devpath)
             .ok_or_else(|| anyhow::anyhow!("Cannot get token of {:?}", device.devpath()))?;
-        self.waiting_controller_manager
-            .remove_device(token, poll_manager)
-            .or_else(|_| {
-                self.combined_controller_manager
-                    .remove_device(token, poll_manager)
-            })
-            .with_context(|| {
-                "Token {token} is not found in either waiting controllers or combined controllers"
-            })?;
+
+        let collected = if self.waiting_controller_manager.remove_device(token, poll_manager)?.is_some() {
+            Some(vec![])
+        } else {
+            self.combined_controller_manager.remove_device(token, poll_manager)?
+        };
+
+        if let Some(controllers) = collected {
+            for (token, controller) in controllers {
+                self.waiting_controller_manager.add_new_device(token, controller, poll_manager)?
+            }
+        } else {
+            Err(anyhow::anyhow!("Token {token} cannot be found in neither waiting controllers nor combined controllers"))?
+        }
 
         Ok(())
     }

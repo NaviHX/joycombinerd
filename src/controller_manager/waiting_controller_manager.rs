@@ -49,13 +49,13 @@ impl WaitingControllerManager {
         &mut self,
         token: usize,
         poll_manager: &mut PollManager<ControllerManager, Anyhow<ControllerMessage>>,
-    ) -> Anyhow<()> {
-        let (callback_key, controller) = self
-            .controllers
-            .remove(&token)
-            .ok_or_else(|| anyhow::anyhow!("No controller for token {token} to remove"))?;
-        poll_manager.remove(callback_key, &*controller.borrow())?;
-        Ok(())
+    ) -> Anyhow<Option<()>> {
+        if let Some((callback_key, controller)) = self.controllers.remove(&token) {
+            poll_manager.remove(callback_key, &*controller.borrow())?;
+            Ok(Some(()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_controller(&self, token: usize) -> Anyhow<Rc<RefCell<Controller>>> {

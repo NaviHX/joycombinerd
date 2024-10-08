@@ -11,19 +11,20 @@ use anyhow::Result as Anyhow;
 
 const COMBINED_GROUP_CAPACITY: usize = 0x100;
 
-#[derive(Debug)]
-pub enum Message {}
+type TokenController = (usize, Rc<RefCell<Controller>>);
+type TokenControllers = Vec<TokenController>;
+type CallbackTokenController = (usize, TokenController);
+type CallbackTokenControllers = Vec<CallbackTokenController>;
+type CallbackVirtualController = (
+    usize,
+    Rc<RefCell<VirtualController>>,
+    CallbackTokenControllers,
+);
+
 pub struct CombinedControllerManager {
     combined_group_token_allocator: KeyAllocator,
     controller_groups: HashMap<usize, usize>,
-    groups: HashMap<
-        usize,
-        (
-            usize,
-            Rc<RefCell<VirtualController>>,
-            Vec<(usize, usize, Rc<RefCell<Controller>>)>,
-        ),
-    >,
+    groups: HashMap<usize, CallbackVirtualController>,
 }
 
 impl CombinedControllerManager {
@@ -84,7 +85,7 @@ impl CombinedControllerManager {
                 polling::PollMode::Level,
                 callback,
             )?;
-            sub_controllers.push((callback_key, *token, sub_controller));
+            sub_controllers.push((callback_key, (*token, sub_controller)));
         }
 
         self.groups.insert(
@@ -99,30 +100,32 @@ impl CombinedControllerManager {
         &mut self,
         remove_token: usize,
         poll_manager: &mut PollManager<ControllerManager, Anyhow<ControllerMessage>>,
-    ) -> Anyhow<Vec<(usize, Rc<RefCell<Controller>>)>> {
-        let group = self.controller_groups.get(&remove_token).ok_or_else(|| {
-            anyhow::anyhow!("Failed to find combined group for controller token {remove_token}")
-        })?;
-        let (callback_key, virtual_controller, sub_controllers) = self.groups.remove(&group).ok_or_else(|| {
-            anyhow::anyhow!("Failed to get combined group info for group {group}")
-        })?;
-        self.combined_group_token_allocator.release(*group);
+    ) -> Anyhow<Option<TokenControllers>> {
+        if let Some(group) = self.controller_groups.get(&remove_token) {
+            let (callback_key, virtual_controller, sub_controllers) =
+                self.groups.remove(group).ok_or_else(|| {
+                    anyhow::anyhow!("Failed to get combined group info for group {group}")
+                })?;
+            self.combined_group_token_allocator.release(*group);
 
-        // Remove virtual controller subscribtion.
-        poll_manager.remove(callback_key, &*virtual_controller.borrow())?;
+            // Remove virtual controller subscribtion.
+            poll_manager.remove(callback_key, &*virtual_controller.borrow())?;
 
-        // Remove each controllers subscribtion and collect controllers except the one to be
-        // removed.
-        let mut collected = vec![];
-        for (callback_key, token, controller) in sub_controllers {
-            poll_manager.remove(callback_key, &*controller.borrow())?;
-            self.controller_groups.remove(&token);
+            // Remove each controllers subscribtion and collect controllers except the one to be
+            // removed.
+            let mut collected = vec![];
+            for (callback_key, (token, controller)) in sub_controllers {
+                poll_manager.remove(callback_key, &*controller.borrow())?;
+                self.controller_groups.remove(&token);
 
-            if token != remove_token {
-                collected.push((token, controller));
+                if token != remove_token {
+                    collected.push((token, controller));
+                }
             }
-        }
 
-        Ok(collected)
+            Ok(Some(collected))
+        } else {
+            Ok(None)
+        }
     }
 }
