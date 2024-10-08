@@ -1,4 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, os::fd::{AsFd, AsRawFd, BorrowedFd}, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    os::fd::{AsFd, AsRawFd, BorrowedFd},
+    rc::Rc,
+};
 
 use anyhow::{Context, Result as Anyhow};
 use evdev::{
