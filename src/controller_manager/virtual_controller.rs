@@ -125,6 +125,7 @@ impl VirtualController {
                                 id == -1 || !self.rumble_effects.contains_key(&(id as u16));
 
                             if allocate_new_effect {
+                                #[allow(clippy::get_first)]
                                 let effect_l = if let Some(device) = self.physical_devices.get(0) {
                                     Some(upload_ff_effect(
                                         &mut (**device).borrow_mut(),
